@@ -1,5 +1,6 @@
 export interface Document {
   id: string;
+  roomCode: string;
   title: string;
   content: string;
   lastModified: Date;
@@ -58,6 +59,8 @@ export const MessageTypes = {
   CURSOR: 'cursor',
   USER_LIST: 'user_list',
   DOCUMENT_SYNC: 'document_sync',
+  CREATE_ROOM: 'create_room',
+  JOIN_ROOM: 'join_room',
   ERROR: 'error',
 } as const;
 
@@ -97,6 +100,22 @@ export interface DocumentSyncPayload {
 export interface TitleUpdatePayload {
   documentId: string;
   newTitle: string;
+}
+
+export interface CreateRoomPayload {
+  user: User;
+  title: string;
+  content: string;
+}
+
+export interface CreateRoomResponse {
+  document: Document;
+  roomCode: string;
+}
+
+export interface JoinRoomPayload {
+  user: User;
+  roomCode: string;
 }
 
 export interface ErrorPayload {

@@ -1,0 +1,110 @@
+.highlight-overlay {
+  /* Positioning - exactly match textarea */
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  
+  /* Complete CSS reset to match textarea exactly */
+  margin: 0;
+  padding: 24px;
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  
+  /* Layout properties - exactly match .editor-textarea */
+  flex: 1;
+  resize: none;
+  
+  /* Font properties - exactly match .editor-textarea */
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 14px;
+  line-height: 1.6;
+  tab-size: 2;
+  
+  /* Text handling - exactly match .editor-textarea */
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  word-break: normal;
+  
+  /* Reset any potential browser defaults */
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-decoration: none;
+  text-transform: none;
+  text-indent: 0;
+  text-align: left;
+  vertical-align: baseline;
+  
+  /* Overlay specific properties */
+  pointer-events: none;
+  color: transparent;
+  background-color: transparent;
+  overflow: hidden;
+  z-index: 1;
+  
+  /* TEMPORARY: Debug border to visualize overlay positioning */
+  /* border: 2px solid red !important; */
+}
+
+/* Highlight styles - these override the imported styles */
+.highlight-overlay .highlight {
+  color: transparent;
+  border-radius: 2px;
+  padding: 0;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.highlight-overlay .highlight-insert {
+  animation: highlight-insert-fade 2s ease-out forwards;
+}
+
+.highlight-overlay .highlight-delete {
+  animation: highlight-delete-fade 2s ease-out forwards;
+}
+
+.highlight-overlay .highlight-cursor {
+  animation: highlight-cursor-pulse 2s ease-out forwards;
+}
+
+@keyframes highlight-insert-fade {
+  0% {
+    background-color: rgba(76, 175, 80, 0.4);
+    transform: scale(1.02);
+  }
+  50% {
+    background-color: rgba(76, 175, 80, 0.3);
+  }
+  100% {
+    background-color: rgba(76, 175, 80, 0.1);
+    transform: scale(1);
+  }
+}
+
+@keyframes highlight-delete-fade {
+  0% {
+    background-color: rgba(244, 67, 54, 0.4);
+    transform: scale(1.02);
+  }
+  50% {
+    background-color: rgba(244, 67, 54, 0.3);
+  }
+  100% {
+    background-color: rgba(244, 67, 54, 0.1);
+    transform: scale(1);
+  }
+}
+
+@keyframes highlight-cursor-pulse {
+  0%, 100% {
+    background-color: rgba(33, 150, 243, 0.3);
+    border-left: 2px solid rgba(33, 150, 243, 0.8);
+  }
+  50% {
+    background-color: rgba(33, 150, 243, 0.1);
+    border-left: 2px solid rgba(33, 150, 243, 0.4);
+  }
+}

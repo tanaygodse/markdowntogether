@@ -6,9 +6,10 @@ interface HeaderProps {
   onTitleChange: (title: string) => void;
   onSave: () => void;
   onExport: () => void;
+  roomCode?: string;
 }
 
-const Header: React.FC<HeaderProps> = ({ title, onTitleChange, onSave, onExport }) => {
+const Header: React.FC<HeaderProps> = ({ title, onTitleChange, onSave, onExport, roomCode }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(title);
 
@@ -48,6 +49,11 @@ const Header: React.FC<HeaderProps> = ({ title, onTitleChange, onSave, onExport 
             >
               {title}
             </h1>
+          )}
+          {roomCode && (
+            <div className="room-code">
+              Room: <span className="room-code-value">{roomCode}</span>
+            </div>
           )}
         </div>
       </div>

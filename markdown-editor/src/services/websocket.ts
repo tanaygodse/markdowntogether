@@ -1,4 +1,4 @@
-import type { WebSocketMessage, User, CursorPosition, Operation } from '../types';
+import type { WebSocketMessage, User, CursorPosition, Operation, CreateRoomPayload, JoinRoomPayload } from '../types';
 import { MessageTypes } from '../types';
 
 export type WebSocketEventHandler = (message: WebSocketMessage) => void;
@@ -165,6 +165,27 @@ export class WebSocketService {
       payload: {
         newTitle,
         documentId,
+      },
+    });
+  }
+
+  createRoom(user: User, title: string, content: string): void {
+    this.send({
+      type: MessageTypes.CREATE_ROOM,
+      payload: {
+        user,
+        title,
+        content,
+      },
+    });
+  }
+
+  joinRoom(user: User, roomCode: string): void {
+    this.send({
+      type: MessageTypes.JOIN_ROOM,
+      payload: {
+        user,
+        roomCode,
       },
     });
   }

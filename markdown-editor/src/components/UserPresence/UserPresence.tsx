@@ -14,6 +14,7 @@ const UserPresence: React.FC<UserPresenceProps> = ({
   currentUserId, 
   isConnected 
 }) => {
+  console.log(users);
   const otherUsers = users.filter(user => user.id !== currentUserId);
 
   return (

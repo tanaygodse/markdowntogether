@@ -6,6 +6,7 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import type { ToolbarAction, User, CursorPosition } from '../../types';
 import Toolbar from '../Toolbar/Toolbar';
 import UserPresence from '../UserPresence/UserPresence';
+import HighlightOverlay from '../HighlightOverlay/HighlightOverlay';
 import './Editor.css';
 
 interface EditorProps {
@@ -16,6 +17,11 @@ interface EditorProps {
   cursors?: CursorPosition[];
   currentUserId?: string;
   isConnected?: boolean;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  applyHighlights?: (content: string) => React.ReactNode[];
 }
 
 const Editor: React.FC<EditorProps> = ({ 
@@ -25,11 +31,17 @@ const Editor: React.FC<EditorProps> = ({
   users = [],
   cursors = [],
   currentUserId,
-  isConnected = false
+  isConnected = false,
+  canUndo = false,
+  canRedo = false,
+  onUndo = () => {},
+  onRedo = () => {},
+  applyHighlights
 }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [splitPosition, setSplitPosition] = useState(50);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const highlightOverlayRef = useRef<HTMLDivElement>(null);
   const [localContent, setLocalContent] = useState(content);
   const isRemoteUpdate = useRef(false);
 
@@ -124,6 +136,21 @@ const Editor: React.FC<EditorProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.ctrlKey || e.metaKey) {
       switch (e.key) {
+        case 'z':
+          e.preventDefault();
+          if (e.shiftKey) {
+            // Cmd+Shift+Z for redo
+            onRedo();
+          } else {
+            // Cmd+Z for undo
+            onUndo();
+          }
+          break;
+        case 'y':
+          // Ctrl+Y for redo (alternative)
+          e.preventDefault();
+          onRedo();
+          break;
         case 'b':
           e.preventDefault();
           handleToolbarAction({ type: 'bold' });
@@ -183,6 +210,17 @@ const Editor: React.FC<EditorProps> = ({
     setIsDragging(false);
   };
 
+  // Synchronize scroll between textarea and highlight overlay
+  const handleTextareaScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    const textarea = e.target as HTMLTextAreaElement;
+    const overlay = highlightOverlayRef.current;
+    
+    if (overlay) {
+      overlay.scrollTop = textarea.scrollTop;
+      overlay.scrollLeft = textarea.scrollLeft;
+    }
+  };
+
   return (
     <div className="editor-container">
       <UserPresence 
@@ -191,7 +229,13 @@ const Editor: React.FC<EditorProps> = ({
         currentUserId={currentUserId}
         isConnected={isConnected}
       />
-      <Toolbar onAction={handleToolbarAction} />
+      <Toolbar 
+        onAction={handleToolbarAction}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={onUndo}
+        onRedo={onRedo}
+      />
       
       <div 
         className="editor-content"
@@ -200,18 +244,28 @@ const Editor: React.FC<EditorProps> = ({
         onMouseLeave={handleMouseUp}
       >
         <div className="editor-pane" style={{ width: `${splitPosition}%` }}>
-          <textarea
-            ref={textareaRef}
-            value={localContent}
-            onChange={handleContentChange}
-            onKeyDown={handleKeyDown}
-            onSelect={handleCursorMove}
-            onClick={handleCursorMove}
-            onKeyUp={handleCursorMove}
-            className="editor-textarea"
-            placeholder="Start writing your markdown here..."
-            spellCheck={false}
-          />
+          <div className="editor-textarea-container">
+            <textarea
+              ref={textareaRef}
+              value={localContent}
+              onChange={handleContentChange}
+              onKeyDown={handleKeyDown}
+              onSelect={handleCursorMove}
+              onClick={handleCursorMove}
+              onKeyUp={handleCursorMove}
+              onScroll={handleTextareaScroll}
+              className="editor-textarea"
+              placeholder="Start writing your markdown here..."
+              spellCheck={false}
+            />
+            {applyHighlights && (
+              <HighlightOverlay
+                ref={highlightOverlayRef}
+                content={localContent}
+                applyHighlights={applyHighlights}
+              />
+            )}
+          </div>
         </div>
         
         <div 

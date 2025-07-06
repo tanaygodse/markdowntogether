@@ -1,12 +1,23 @@
 import React from 'react';
 import type { ToolbarAction } from '../../types';
+import UndoRedoControls from '../UndoRedoControls/UndoRedoControls';
 import './Toolbar.css';
 
 interface ToolbarProps {
   onAction: (action: ToolbarAction) => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onUndo?: () => void;
+  onRedo?: () => void;
 }
 
-const Toolbar: React.FC<ToolbarProps> = ({ onAction }) => {
+const Toolbar: React.FC<ToolbarProps> = ({ 
+  onAction, 
+  canUndo = false, 
+  canRedo = false, 
+  onUndo = () => {}, 
+  onRedo = () => {} 
+}) => {
   const toolbarItems = [
     { type: 'bold' as const, icon: 'B', title: 'Bold (Ctrl+B)' },
     { type: 'italic' as const, icon: 'I', title: 'Italic (Ctrl+I)' },
@@ -21,6 +32,13 @@ const Toolbar: React.FC<ToolbarProps> = ({ onAction }) => {
 
   return (
     <div className="toolbar">
+      <UndoRedoControls
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onUndo={onUndo}
+        onRedo={onRedo}
+      />
+      
       {toolbarItems.map((item) => (
         <button
           key={item.type}

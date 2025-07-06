@@ -18,11 +18,21 @@
   border-right: 1px solid #e0e0e0;
 }
 
+.editor-textarea-container {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 .editor-textarea {
   flex: 1;
   border: none;
   outline: none;
+  margin: 0;
   padding: 24px;
+  box-sizing: border-box;
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 14px;
   line-height: 1.6;
@@ -30,6 +40,17 @@
   background-color: #fff;
   resize: none;
   tab-size: 2;
+  
+  /* Reset browser defaults that might affect positioning */
+  font-style: normal;
+  font-weight: normal;
+  text-decoration: none;
+  text-transform: none;
+  text-indent: 0;
+  text-align: left;
+  vertical-align: baseline;
+  word-wrap: break-word;
+  white-space: pre-wrap;
 }
 
 .editor-textarea::placeholder {
@@ -187,4 +208,84 @@
   border: none;
   border-top: 1px solid #e0e0e0;
   margin: 24px 0;
+}
+
+/* Highlight animations for real-time collaboration */
+.highlight {
+  border-radius: 2px;
+  padding: 1px 0;
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.highlight-insert {
+  animation: highlight-insert-fade 2s ease-out forwards;
+}
+
+.highlight-delete {
+  animation: highlight-delete-fade 2s ease-out forwards;
+}
+
+.highlight-cursor {
+  animation: highlight-cursor-pulse 2s ease-out forwards;
+}
+
+@keyframes highlight-insert-fade {
+  0% {
+    background-color: rgba(76, 175, 80, 0.4);
+    transform: scale(1.02);
+  }
+  50% {
+    background-color: rgba(76, 175, 80, 0.3);
+  }
+  100% {
+    background-color: rgba(76, 175, 80, 0.1);
+    transform: scale(1);
+  }
+}
+
+@keyframes highlight-delete-fade {
+  0% {
+    background-color: rgba(244, 67, 54, 0.4);
+    transform: scale(1.02);
+  }
+  50% {
+    background-color: rgba(244, 67, 54, 0.3);
+  }
+  100% {
+    background-color: rgba(244, 67, 54, 0.1);
+    transform: scale(1);
+  }
+}
+
+@keyframes highlight-cursor-pulse {
+  0%, 100% {
+    background-color: rgba(33, 150, 243, 0.3);
+    border-left: 2px solid rgba(33, 150, 243, 0.8);
+  }
+  50% {
+    background-color: rgba(33, 150, 243, 0.1);
+    border-left: 2px solid rgba(33, 150, 243, 0.4);
+  }
+}
+
+/* Highlight overlay for textarea */
+.editor-highlight-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  padding: inherit;
+  margin: inherit;
+  border: inherit;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow: hidden;
+  color: transparent;
+  z-index: 1;
 }

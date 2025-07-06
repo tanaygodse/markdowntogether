@@ -58,6 +58,19 @@ func (ms *MemoryStorage) GetDocument(id string) (*types.Document, error) {
 	return doc, nil
 }
 
+func (ms *MemoryStorage) GetDocumentByRoomCode(roomCode string) (*types.Document, error) {
+	ms.mutex.RLock()
+	defer ms.mutex.RUnlock()
+	
+	for _, doc := range ms.documents {
+		if doc.RoomCode == roomCode {
+			return doc, nil
+		}
+	}
+	
+	return nil, ErrDocumentNotFound
+}
+
 func (ms *MemoryStorage) UpdateDocument(doc *types.Document) error {
 	ms.mutex.Lock()
 	defer ms.mutex.Unlock()

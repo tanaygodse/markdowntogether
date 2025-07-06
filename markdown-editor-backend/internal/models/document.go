@@ -26,6 +26,7 @@ func NewDocumentService(storage *storage.MemoryStorage) *DocumentService {
 func (ds *DocumentService) CreateDocument(title, content string) (*types.Document, error) {
 	doc := &types.Document{
 		ID:           uuid.New().String(),
+		RoomCode:     ds.generateRoomCode(),
 		Title:        title,
 		Content:      content,
 		LastModified: time.Now(),
@@ -44,6 +45,7 @@ func (ds *DocumentService) CreateDocument(title, content string) (*types.Documen
 func (ds *DocumentService) CreateDocumentWithID(id, title, content string) (*types.Document, error) {
 	doc := &types.Document{
 		ID:           id,
+		RoomCode:     ds.generateRoomCode(),
 		Title:        title,
 		Content:      content,
 		LastModified: time.Now(),
@@ -84,6 +86,42 @@ func (ds *DocumentService) UpdateDocumentTitle(documentID, newTitle string) (*ty
 	}
 
 	return doc, nil
+}
+
+// CreateRoom creates a new room with a generated room code
+func (ds *DocumentService) CreateRoom(title, content string) (*types.Document, error) {
+	roomCode := ds.generateRoomCode()
+	
+	doc := &types.Document{
+		ID:           uuid.New().String(),
+		RoomCode:     roomCode,
+		Title:        title,
+		Content:      content,
+		LastModified: time.Now(),
+		Version:      1,
+	}
+
+	err := ds.storage.CreateDocument(doc)
+	if err != nil {
+		return nil, err
+	}
+
+	return doc, nil
+}
+
+// GetDocumentByRoomCode retrieves a document by room code
+func (ds *DocumentService) GetDocumentByRoomCode(roomCode string) (*types.Document, error) {
+	return ds.storage.GetDocumentByRoomCode(roomCode)
+}
+
+// generateRoomCode generates a 6-character alphanumeric room code
+func (ds *DocumentService) generateRoomCode() string {
+	const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	result := make([]byte, 6)
+	for i := range result {
+		result[i] = chars[rand.Intn(len(chars))]
+	}
+	return string(result)
 }
 
 // ApplyOperation applies a text operation to a document

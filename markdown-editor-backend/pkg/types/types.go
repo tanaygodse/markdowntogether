@@ -7,6 +7,7 @@ import (
 // Document represents a markdown document
 type Document struct {
 	ID           string    `json:"id"`
+	RoomCode     string    `json:"roomCode"`
 	Title        string    `json:"title"`
 	Content      string    `json:"content"`
 	LastModified time.Time `json:"lastModified"`
@@ -57,6 +58,8 @@ const (
 	MessageTypeCursor        = "cursor"
 	MessageTypeUserList      = "user_list"
 	MessageTypeDocumentSync  = "document_sync"
+	MessageTypeCreateRoom    = "create_room"
+	MessageTypeJoinRoom      = "join_room"
 	MessageTypeError         = "error"
 )
 
@@ -96,6 +99,22 @@ type DocumentSyncPayload struct {
 type TitleUpdatePayload struct {
 	DocumentID string `json:"documentId"`
 	NewTitle   string `json:"newTitle"`
+}
+
+type CreateRoomPayload struct {
+	User      User   `json:"user"`
+	Title     string `json:"title"`
+	Content   string `json:"content"`
+}
+
+type CreateRoomResponse struct {
+	Document Document `json:"document"`
+	RoomCode string   `json:"roomCode"`
+}
+
+type JoinRoomPayload struct {
+	User     User   `json:"user"`
+	RoomCode string `json:"roomCode"`
 }
 
 type ErrorPayload struct {

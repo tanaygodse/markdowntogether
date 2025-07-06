@@ -206,6 +206,10 @@ func (h *Handlers) processMessage(client *ws.Client, message *types.WebSocketMes
 		h.handleTitleUpdateMessage(client, message)
 	case types.MessageTypeCursor:
 		h.handleCursorMessage(client, message)
+	case types.MessageTypeCreateRoom:
+		h.handleCreateRoomMessage(client, message)
+	case types.MessageTypeJoinRoom:
+		h.handleJoinRoomMessage(client, message)
 	default:
 		log.Printf("Unknown message type: %s", message.Type)
 	}
@@ -281,15 +285,7 @@ func (h *Handlers) handleJoinMessage(client *ws.Client, message *types.WebSocket
 		client.Send <- syncBytes
 	}
 
-	// Broadcast user join to others
-	joinMessage := types.WebSocketMessage{
-		Type:    types.MessageTypeJoin,
-		Payload: payload,
-	}
-
-	if joinBytes, err := json.Marshal(joinMessage); err == nil {
-		h.hub.BroadcastToDocument(client.DocumentID, joinBytes, client)
-	}
+	// Note: No need to broadcast user join separately since DocumentSync already contains all users
 
 	log.Printf("User %s joined document %s", client.UserID, client.DocumentID)
 }
@@ -405,5 +401,132 @@ func (h *Handlers) handleTitleUpdateMessage(client *ws.Client, message *types.We
 		log.Printf("Title update broadcast sent to all clients")
 	} else {
 		log.Printf("Error marshaling title update broadcast: %v", err)
+	}
+}
+
+func (h *Handlers) handleCreateRoomMessage(client *ws.Client, message *types.WebSocketMessage) {
+	log.Printf("Received create room message")
+	
+	payloadBytes, _ := json.Marshal(message.Payload)
+	var payload types.CreateRoomPayload
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		log.Printf("Error unmarshaling create room payload: %v", err)
+		h.sendError(client, "Invalid create room payload", "INVALID_PAYLOAD")
+		return
+	}
+
+	log.Printf("Creating room with title: %s", payload.Title)
+
+	// Create new room/document
+	doc, err := h.documentService.CreateRoom(payload.Title, payload.Content)
+	if err != nil {
+		log.Printf("Error creating room: %v", err)
+		h.sendError(client, "Failed to create room", "CREATE_ROOM_ERROR")
+		return
+	}
+
+	// Set client details
+	client.UserID = payload.User.ID
+	client.DocumentID = doc.ID
+
+	// Register client and add user to storage
+	h.hub.RegisterClient(client)
+	h.userService.AddUser(&payload.User)
+	h.userService.JoinDocument(client.UserID, client.DocumentID)
+
+	log.Printf("Room created successfully. Room code: %s, Document ID: %s", doc.RoomCode, doc.ID)
+
+	// Send response back to client
+	response := types.CreateRoomResponse{
+		Document: *doc,
+		RoomCode: doc.RoomCode,
+	}
+
+	responseMessage := types.WebSocketMessage{
+		Type:    types.MessageTypeCreateRoom,
+		Payload: response,
+	}
+
+	if responseBytes, err := json.Marshal(responseMessage); err == nil {
+		client.Send <- responseBytes
+		log.Printf("Create room response sent to client")
+	} else {
+		log.Printf("Error marshaling create room response: %v", err)
+	}
+}
+
+func (h *Handlers) handleJoinRoomMessage(client *ws.Client, message *types.WebSocketMessage) {
+	log.Printf("Received join room message")
+	
+	payloadBytes, _ := json.Marshal(message.Payload)
+	var payload types.JoinRoomPayload
+	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		log.Printf("Error unmarshaling join room payload: %v", err)
+		h.sendError(client, "Invalid join room payload", "INVALID_PAYLOAD")
+		return
+	}
+
+	log.Printf("Joining room with code: %s", payload.RoomCode)
+
+	// Find document by room code
+	doc, err := h.documentService.GetDocumentByRoomCode(payload.RoomCode)
+	if err != nil {
+		log.Printf("Error finding room: %v", err)
+		h.sendError(client, "Room not found", "ROOM_NOT_FOUND")
+		return
+	}
+
+	// Set client details
+	client.UserID = payload.User.ID
+	client.DocumentID = doc.ID
+
+	// Register client and add user to storage
+	h.hub.RegisterClient(client)
+	h.userService.AddUser(&payload.User)
+	h.userService.JoinDocument(client.UserID, client.DocumentID)
+
+	// Get all users in the document
+	users, err := h.userService.GetDocumentUsers(client.DocumentID)
+	if err != nil {
+		log.Printf("Error getting document users: %v", err)
+		users = []*types.User{}
+	}
+
+	// Send document sync to the joining user
+	syncPayload := types.DocumentSyncPayload{
+		Document: *doc,
+		Users:    make([]types.User, len(users)),
+	}
+
+	for i, user := range users {
+		syncPayload.Users[i] = *user
+	}
+
+	syncMessage := types.WebSocketMessage{
+		Type:    types.MessageTypeDocumentSync,
+		Payload: syncPayload,
+	}
+
+	if syncBytes, err := json.Marshal(syncMessage); err == nil {
+		client.Send <- syncBytes
+		log.Printf("Document sync sent to joining user")
+	}
+
+	// Note: No need to broadcast user join separately since DocumentSync already contains all users
+
+	log.Printf("User %s joined room %s successfully", client.UserID, payload.RoomCode)
+}
+
+func (h *Handlers) sendError(client *ws.Client, message, code string) {
+	errorMessage := types.WebSocketMessage{
+		Type: types.MessageTypeError,
+		Payload: types.ErrorPayload{
+			Message: message,
+			Code:    code,
+		},
+	}
+
+	if errorBytes, err := json.Marshal(errorMessage); err == nil {
+		client.Send <- errorBytes
 	}
 }

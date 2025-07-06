@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useWebSocket } from './useWebSocket';
+import { useUndoRedo, generateOperationsWithUndo } from './useUndoRedo';
+import { useHighlights } from './useHighlights';
 import type { 
   User, 
   Document, 
@@ -37,6 +39,19 @@ export const useCollaboration = (documentId: string, userName: string) => {
   });
 
   const documentVersionRef = useRef(0);
+  const isUndoRedoOperation = useRef(false);
+  
+  // Initialize undo/redo functionality
+  const undoRedo = useUndoRedo(state.currentUser?.id);
+  
+  // Initialize highlighting functionality
+  const highlights = useHighlights(state.currentUser?.id);
+
+  // Helper function to find user color by ID
+  const getUserColor = useCallback((userId: string): string => {
+    const user = state.users.find(u => u.id === userId);
+    return user?.color || '#999999';
+  }, [state.users]);
 
   // Create current user
   useEffect(() => {
@@ -93,7 +108,7 @@ export const useCollaboration = (documentId: string, userName: string) => {
       setState(prev => ({
         ...prev,
         document: payload.document,
-        users: payload.users,
+        users: deduplicateUsersByName(payload.users, prev.currentUser?.id),
         isLoading: false,
         error: null,
       }));
@@ -104,9 +119,9 @@ export const useCollaboration = (documentId: string, userName: string) => {
       const payload = message.payload as JoinPayload;
       setState(prev => ({
         ...prev,
-        users: [...prev.users, payload.user].filter((user, index, arr) => 
-          arr.findIndex(u => u.id === user.id) === index
-        ),
+        users: prev.users.some(u => u.id === payload.user.id)
+          ? prev.users // User already exists, no change needed
+          : deduplicateUsersByName([...prev.users, payload.user], prev.currentUser?.id), // Add user and deduplicate by name
       }));
     };
 
@@ -131,6 +146,11 @@ export const useCollaboration = (documentId: string, userName: string) => {
       }
 
       console.log('Applying remote operation:', payload.operation);
+      
+      // Add visual highlight for remote operation
+      const userColor = getUserColor(payload.operation.userId);
+      highlights.addOperationHighlight(payload.operation, userColor);
+      
       applyRemoteOperation(payload.operation);
     };
 
@@ -141,6 +161,10 @@ export const useCollaboration = (documentId: string, userName: string) => {
       if (payload.position.userId === state.currentUser?.id) {
         return;
       }
+
+      // Add visual highlight for cursor movement
+      const userColor = getUserColor(payload.position.userId);
+      highlights.addCursorHighlight(payload.position.position, payload.position.userId, userColor);
 
       setState(prev => ({
         ...prev,
@@ -220,6 +244,11 @@ export const useCollaboration = (documentId: string, userName: string) => {
 
     console.log('Sending operation:', operation);
 
+    // Add to undo history (only for user-initiated operations, not undo/redo)
+    if (!isUndoRedoOperation.current) {
+      undoRedo.addOperation(operation);
+    }
+
     // Apply operation locally first
     setState(prev => {
       if (!prev.document) return prev;
@@ -240,7 +269,7 @@ export const useCollaboration = (documentId: string, userName: string) => {
 
     documentVersionRef.current = operation.version;
     service.sendOperation(operation, documentId);
-  }, [state.currentUser, state.document, documentId, service]);
+  }, [state.currentUser, state.document, documentId, service, undoRedo]);
 
   const updateCursor = useCallback((position: number, line: number, column: number) => {
     if (!state.currentUser) return;
@@ -264,7 +293,8 @@ export const useCollaboration = (documentId: string, userName: string) => {
     const oldContent = state.document.content;
     console.log('updateContent called:', { oldContent, newContent });
     
-    const operations = generateOperations(oldContent, newContent, state.currentUser?.id || '');
+    // Use enhanced operation generation that preserves deleted content for undo
+    const operations = generateOperationsWithUndo(oldContent, newContent, state.currentUser?.id || '');
     console.log('Generated operations:', operations);
     
     operations.forEach(op => {
@@ -300,6 +330,62 @@ export const useCollaboration = (documentId: string, userName: string) => {
     service.sendTitleUpdate(newTitle, state.document.id);
   }, [state.document, service]);
 
+  // Undo function
+  const performUndo = useCallback(() => {
+    if (!undoRedo.canUndo || !state.document) {
+      return;
+    }
+
+    const undoOperation = undoRedo.undo();
+    if (undoOperation) {
+      console.log('Performing undo:', undoOperation);
+      
+      // Mark this as an undo operation to prevent it from being added to history again
+      isUndoRedoOperation.current = true;
+      
+      // Apply the undo operation
+      sendOperation(
+        undoOperation.type as 'insert' | 'delete',
+        undoOperation.position,
+        undoOperation.content,
+        undoOperation.length
+      );
+      
+      // Reset the flag after a short delay
+      setTimeout(() => {
+        isUndoRedoOperation.current = false;
+      }, 10);
+    }
+  }, [undoRedo, state.document, sendOperation]);
+
+  // Redo function
+  const performRedo = useCallback(() => {
+    if (!undoRedo.canRedo || !state.document) {
+      return;
+    }
+
+    const redoOperation = undoRedo.redo();
+    if (redoOperation) {
+      console.log('Performing redo:', redoOperation);
+      
+      // Mark this as a redo operation to prevent it from being added to history again
+      isUndoRedoOperation.current = true;
+      
+      // Apply the redo operation
+      sendOperation(
+        redoOperation.type as 'insert' | 'delete',
+        redoOperation.position,
+        redoOperation.content,
+        redoOperation.length
+      );
+      
+      // Reset the flag after a short delay
+      setTimeout(() => {
+        isUndoRedoOperation.current = false;
+      }, 10);
+    }
+  }, [undoRedo, state.document, sendOperation]);
+
   return {
     ...state,
     isConnected,
@@ -307,6 +393,16 @@ export const useCollaboration = (documentId: string, userName: string) => {
     updateCursor,
     updateContent,
     updateTitle,
+    // Undo/Redo functionality
+    canUndo: undoRedo.canUndo,
+    canRedo: undoRedo.canRedo,
+    undo: performUndo,
+    redo: performRedo,
+    clearHistory: undoRedo.clearHistory,
+    // Highlighting functionality
+    highlights: highlights.highlights,
+    applyHighlights: highlights.applyHighlights,
+    clearHighlights: highlights.clearHighlights,
   };
 };
 
@@ -317,6 +413,29 @@ function generateUserColor(): string {
     '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9',
   ];
   return colors[Math.floor(Math.random() * colors.length)];
+}
+
+function deduplicateUsersByName(users: User[], currentUserId?: string): User[] {
+  // Create a map to store the most recent user for each name
+  const userMap = new Map<string, User>();
+  
+  users.forEach(user => {
+    const existingUser = userMap.get(user.name);
+    
+    // Always keep the current user in their own view
+    if (user.id === currentUserId) {
+      userMap.set(user.name, user);
+    }
+    // For other users, keep the most recent one
+    else if (!existingUser || new Date(user.joinedAt) > new Date(existingUser.joinedAt)) {
+      // Don't override if current user is already stored for this name
+      if (!currentUserId || existingUser?.id !== currentUserId) {
+        userMap.set(user.name, user);
+      }
+    }
+  });
+  
+  return Array.from(userMap.values());
 }
 
 function applyOperationToText(content: string, operation: Operation): string {
@@ -337,46 +456,3 @@ function applyOperationToText(content: string, operation: Operation): string {
   }
 }
 
-function generateOperations(oldText: string, newText: string, userId: string): Operation[] {
-  const operations: Operation[] = [];
-  
-  // Simple diff algorithm - find the first difference
-  let i = 0;
-  while (i < Math.min(oldText.length, newText.length) && oldText[i] === newText[i]) {
-    i++;
-  }
-  
-  // Find the last difference
-  let oldEnd = oldText.length;
-  let newEnd = newText.length;
-  while (oldEnd > i && newEnd > i && oldText[oldEnd - 1] === newText[newEnd - 1]) {
-    oldEnd--;
-    newEnd--;
-  }
-  
-  // Delete old text
-  if (oldEnd > i) {
-    operations.push({
-      type: 'delete',
-      position: i,
-      length: oldEnd - i,
-      userId,
-      timestamp: new Date(),
-      version: 0, // Will be set by the caller
-    });
-  }
-  
-  // Insert new text
-  if (newEnd > i) {
-    operations.push({
-      type: 'insert',
-      position: i,
-      content: newText.slice(i, newEnd),
-      userId,
-      timestamp: new Date(),
-      version: 0, // Will be set by the caller
-    });
-  }
-  
-  return operations;
-}
